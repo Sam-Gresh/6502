@@ -4,6 +4,8 @@ DDRB = $6002
 DDRA = $6003
 SR = $600A
 ACR = $600B
+IFR = $600D
+IER = $600E
 
 LCD_COMMAND = $0000    ;1 byte
 LCD_CONTROL = $0001    ;1 byte
@@ -38,26 +40,26 @@ lcd_send_command:   ;Precondition: lcd command in LCD_COMMAND; lcd RW/RS in LCD_
 
 lcd_busy_loop:
 
-  lda #%00100000        ;set lcd to read
+  lda #%00100000        ;lcd clk low
   sta PORTB
 
   lda #%01100000        ;lcd clk high
   sta PORTB
   
   lda PORTB             ;check lcd_busy pin             
-  pha
+  pha                   ;put busy flag on stack
 
-  lda #%00100000  
+  lda #%00100000        ;lcd clk low
   sta PORTB
 
-  lda #%01100000
-  sta PORTB
-  lda PORTB
-  pla 
-  and #%00001000
+  lda #%01100000        ;lcd clk high
+  sta PORTB             
+  lda PORTB             ;read addr low nibble
+  pla                   ;Pull busy flag off stack
+  and #%00001000        ;check busy flag
   bne lcd_busy_loop
 
-  lda #%00100000
+  lda #%00100000        ;lcd clk low
   sta PORTB
   
   lda #%11111111        ;enable output on D7
@@ -93,7 +95,6 @@ lcd_enable:             ;Precondition: instruction is in accumulator
   sta PORTB
   rts
 
-
 lcd_print_char:
 
   sta LCD_COMMAND
@@ -106,46 +107,60 @@ lcd_print_char:
   rts
 
 lcd_print_string:
-  pha
+  pha                   ;store registers for return
   txa
   pha
 
-  ldx #$00
-  lda #%000000001
+  ldx #$00              ;initialize counter
+  lda #%000000001       ;Send clear command
   sta LCD_COMMAND
   lda #%000000000
   sta LCD_CONTROL
   jsr lcd_send_command
 
 lcd_print_loop:
-  lda message,x
-  beq lcd_print_return
-  jsr lcd_print_char
-  inx
+  lda message,x         ;fetch xth char from rom
+  beq lcd_print_return  ;check for null terminator 
+  jsr lcd_print_char    ;print char
+  inx                   
   jmp lcd_print_loop
 
 lcd_print_return:
-  pla
+  pla                   ;return registers
   tax
   pla
   rts
 
+seg_write:
+  pha                   ;push output val onto stack
 
+seg_busy:
+  lda IFR               ;check if 7segment done writing
+  and #%00000100
+  beq seg_busy
+  
+  pla                   ;get output val off stack
+  sta SR                ;write output val to shift register
+  rts
 
 reset:
   ldx #$ff
   txs
+  stx IFR
+
+  lda #%10000100
+  sta IER
 
   lda #%11111111        ;Set I/O pins
   sta DDRA
   lda #%11111111
   sta DDRB
 
-  lda #$00
-  sta PORTB
-  
-  lda #$88              ;Print to 7seg display
-  sta PORTA
+  lda #%00010100        ;Set ACR
+  sta ACR
+
+  lda #$88              ;init 7segs
+  sta SR
 
   jsr lcd_init
 
@@ -168,11 +183,15 @@ reset:
   stx LCD_COMMAND
   jsr lcd_send_command
 
-  jsr lcd_print_string
+  lda "k"
+  jsr lcd_print_char
+
+  lda #$00
+  jsr seg_write
+  
+  
 
 halt:
-  lda #$00
-  sta PORTA
   jmp halt
 
   .org $fffc
