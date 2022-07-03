@@ -2,10 +2,15 @@ PORTB = $6000
 PORTA = $6001
 DDRB = $6002
 DDRA = $6003
+T1CL = $6004
+T1CH = $6005
+
 SR = $600A
 ACR = $600B
+
 IFR = $600D
 IER = $600E
+
 
 LCD_COMMAND = $0000    ;1 byte
 LCD_CONTROL = $0001    ;1 byte
@@ -59,7 +64,7 @@ lcd_busy_loop:
   and #%00001000        ;check busy flag
   bne lcd_busy_loop
 
-  lda #%00100000        ;lcd clk low
+  lda #%00000000        ;lcd clk low
   sta PORTB
   
   lda #%11111111        ;enable output on D7
@@ -99,7 +104,7 @@ lcd_print_char:
 
   sta LCD_COMMAND
 
-  lda #%000100000
+  lda #%00010000
   sta LCD_CONTROL
 
   jsr lcd_send_command
@@ -156,6 +161,10 @@ reset:
   lda #%11111111
   sta DDRB
 
+  lda #$00
+  sta PORTA
+  sta PORTB
+
   lda #%00010100        ;Set ACR
   sta ACR
 
@@ -183,11 +192,10 @@ reset:
   stx LCD_COMMAND
   jsr lcd_send_command
 
-  lda "k"
-  jsr lcd_print_char
+  jsr lcd_print_string
 
   lda #$00
-  jsr seg_write
+  ;jsr seg_write
   
   
 
