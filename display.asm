@@ -14,20 +14,58 @@ IER = $600E
 
 LCD_COMMAND = $0000    ;1 byte
 LCD_CONTROL = $0001    ;1 byte
-PRINT_BUFFER = $0002   ;many bytes
+T1_DELAY = $0002       ;2 bytes from $0002 to $0003
+PRINT_BUFFER = $0004   ;many bytes
 
 
 
   .org $8000
   message: .asciiz "Hello World"
 
+t1_sleep:             ;Precondition: time delay in us is 2 bytes at T1_DELAY
+  pha
+  lda T1_DELAY
+  sta T1CL
+  lda T1_DELAY + 1
+  sta T1CH 
+t1_sleep_loop
+  lda IFR
+  and #%01000000
+  beq t1_sleep_loop
+  pla
+  rts
+
+
+
 lcd_init:
+
+  lda #%00000011
+  sta PORTB
+  jsr lcd_enable
+
+  lda #$68
+  sta T1_DELAY
+  lda #$10
+  sta T1_DELAY + 1
+  jsr t1_sleep
+  
+  lda #%00000011
+  sta PORTB
+  jsr lcd_enable
+
+  lda #$6e
+  sta T1_DELAY
+  lda #$00
+  sta T1_DELAY + 1
+  jsr t1_sleep
+
+  lda #%00000011
+  sta PORTB
+  jsr lcd_enable
+
   lda #%00000010
   sta PORTB
-  ora #%01000000
-  sta PORTB
-  and #%10111111
-  sta PORTB
+  jsr lcd_enable
   rts
 
 lcd_send_command:   ;Precondition: lcd command in LCD_COMMAND; lcd RW/RS in LCD_CONTROL
@@ -153,7 +191,7 @@ reset:
   txs
   stx IFR
 
-  lda #%10000100
+  lda #%11000000
   sta IER
 
   lda #%11111111        ;Set I/O pins
@@ -195,8 +233,7 @@ reset:
   jsr lcd_print_string
 
   lda #$00
-  ;jsr seg_write
-  
+  jsr seg_write
   
 
 halt:
