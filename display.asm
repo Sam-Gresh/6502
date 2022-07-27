@@ -12,10 +12,11 @@ IFR = $600D
 IER = $600E
 
 
-LCD_COMMAND = $0000    ;1 byte
-LCD_CONTROL = $0001    ;1 byte
-T1_DELAY = $0002       ;2 bytes from $0002 to $0003
-PRINT_BUFFER = $0004   ;many bytes
+LCD_COMMAND = $0000   ;1 byte
+LCD_CONTROL = $0001   ;1 byte
+T1_DELAY = $0002      ;2 bytes from $0002 to $0003
+SEG_BUFFER = $0004    ;1 byte
+
 
 
 
@@ -175,15 +176,24 @@ lcd_print_return:
   rts
 
 seg_write:
-  pha                   ;push output val onto stack
+  sta SEG_BUFFER
+  txa
+  pha
+  ldx #$08
 
-seg_busy:
-  lda IFR               ;check if 7segment done writing
-  and #%00000100
-  beq seg_busy
-  
-  pla                   ;get output val off stack
-  sta SR                ;write output val to shift register
+seg_loop:
+  lda SEG_BUFFER
+  and #%00000001
+  sta PORTB
+  ora #%00110000
+  sta PORTB
+  lda #$00
+  sta PORTB
+  dex
+  lsr SEG_BUFFER
+  bne seg_loop
+  pla
+  tax
   rts
 
 reset:
@@ -232,7 +242,7 @@ reset:
 
   jsr lcd_print_string
 
-  lda #$00
+  lda #$63
   jsr seg_write
   
 
